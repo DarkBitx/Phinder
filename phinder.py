@@ -36,11 +36,16 @@ def load_dll_list(list_file):
 
 def parse_csv(csv_file):
     try:
-        with open(csv_file, "r", encoding="utf-8-sig") as f:
-
+        with open(csv_file, "r", encoding="utf-8-sig", newline="") as f:
             reader = csv.reader(f)
-            headers = next(reader)
-            headers = [x.strip() for x in headers]
+
+            try:
+                headers = next(reader)
+            except StopIteration:
+                sys.exit("[!] CSV file is empty")
+
+            headers = [x.strip().lower() for x in headers]
+
             columns = {
                 "time": None,
                 "process": None,
@@ -53,60 +58,62 @@ def parse_csv(csv_file):
             }
 
             for index, name in enumerate(headers):
-                name = name.lower()
-
                 if name in ("time of day", "time"):
                     columns["time"] = index
-
                 elif name in ("process name", "process"):
                     columns["process"] = index
-
                 elif name == "pid":
                     columns["pid"] = index
-
                 elif name == "operation":
                     columns["operation"] = index
-
                 elif name == "path":
                     columns["path"] = index
-
                 elif name == "user":
                     columns["user"] = index
-
                 elif name == "result":
                     columns["result"] = index
-
                 elif name == "detail":
                     columns["detail"] = index
 
-            required = [
-                "process",
-                "operation",
-                "path",
-                "result"
-            ]
+            required = ["process", "operation", "path", "result"]
 
             for item in required:
                 if columns[item] is None:
                     sys.exit(f"[!] Missing required CSV column: {item}")
 
-            events = []
-            for row in reader:
-                events.append({
-                    "time": row[columns["time"]],
-                    "process": row[columns["process"]],
-                    "pid": row[columns["pid"]],
-                    "operation": row[columns["operation"]],
-                    "path": row[columns["path"]],
-                    "user": row[columns["user"]],
-                    "result": row[columns["result"]],
-                    "detail": row[columns["detail"]],
+            def get_value(row, column):
+                index = columns[column]
 
+                if index is None:
+                    return ""
+
+                if index >= len(row):
+                    return ""
+
+                return row[index].strip()
+
+            events = []
+
+            for row in reader:
+                if not row:
+                    continue
+
+                events.append({
+                    "time": get_value(row, "time"),
+                    "process": get_value(row, "process"),
+                    "pid": get_value(row, "pid"),
+                    "operation": get_value(row, "operation"),
+                    "path": get_value(row, "path"),
+                    "user": get_value(row, "user"),
+                    "result": get_value(row, "result"),
+                    "detail": get_value(row, "detail"),
                 })
+
             return events, columns
+
     except Exception as e:
         sys.exit(f"[!] Failed reading CSV: {e}")
-
+        
 def phantom_finder(events, pname, outpath, dll_list=None):
 
     pids = {}
